@@ -48,3 +48,38 @@ def test_sent_tokenize_single_sentence():
     m = SegMetric()
     sents = m._sent_tokenize("Only one sentence here")
     assert len(sents) == 1
+
+
+def make_metric(vectors=None, threshold_sigma=0.5, delta=0.2):
+    return SegMetric(embedder=FakeEmbedder(vectors), threshold_sigma=threshold_sigma, delta=delta)
+
+
+def test_detect_boundaries_empty_for_single_sentence():
+    m = make_metric()
+    # 문장 1개 → 인접 쌍 없음 → 경계 없음
+    boundaries = m._detect_boundaries(["Only one."])
+    assert boundaries == set()
+
+
+def test_detect_boundaries_all_similar_no_boundary():
+    """모든 인접 쌍 유사도가 동일하면 분산=0, threshold>=mean → 경계 없음."""
+    v = {"A": [1.0, 0.0, 0.0, 0.0], "B": [1.0, 0.0, 0.0, 0.0], "C": [1.0, 0.0, 0.0, 0.0]}
+    m = make_metric(vectors=v)
+    boundaries = m._detect_boundaries(["A", "B", "C"])
+    assert boundaries == set()
+
+
+def test_detect_boundaries_detects_drop():
+    """유사도가 급락하는 쌍을 경계로 탐지한다.
+
+    A-B 는 거의 동일 방향 (sim≈1), B-C 는 직교 (sim≈0).
+    경계는 인덱스 1 (B 와 C 사이).
+    """
+    v = {
+        "A": [1.0, 0.0, 0.0, 0.0],
+        "B": [1.0, 0.0, 0.0, 0.0],  # A 와 동일
+        "C": [0.0, 1.0, 0.0, 0.0],  # B 와 직교
+    }
+    m = make_metric(vectors=v, threshold_sigma=0.5)
+    boundaries = m._detect_boundaries(["A", "B", "C"])
+    assert 1 in boundaries  # index 1 = B↔C 경계
