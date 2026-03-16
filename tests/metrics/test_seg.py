@@ -29,11 +29,6 @@ def test_seg_metric_instantiable():
     assert m is not None
 
 
-def test_seg_compute_raises_not_implemented():
-    m = SegMetric()
-    with pytest.raises(NotImplementedError):
-        m.compute("Hello world.", "Hello world.")
-
 
 def test_sent_tokenize_splits_sentences():
     """SegMetric 이 텍스트를 문장 단위로 분리하는지 확인."""
@@ -118,3 +113,87 @@ def test_count_score_different_count():
     score = m._count_score(src_b={1, 2}, tgt_b=set())
     # |3-1|/max(3,1) = 2/3
     assert abs(score - (1 - 2 / 3)) < 1e-9
+
+
+def test_compute_identical_texts_score_one():
+    """동일한 텍스트 → 1.0."""
+    v = {
+        "The cat sat.": [1.0, 0.0, 0.0, 0.0],
+        "The mat was red.": [0.8, 0.6, 0.0, 0.0],
+    }
+    m = make_metric(vectors=v)
+    text = "The cat sat. The mat was red."
+    score = m.compute(text, text)
+    assert score == 1.0
+
+
+def test_compute_returns_float_in_range():
+    v = {
+        "A.": [1.0, 0.0, 0.0, 0.0],
+        "B.": [0.0, 1.0, 0.0, 0.0],
+        "C.": [0.0, 0.0, 1.0, 0.0],
+        "D.": [0.0, 0.0, 0.0, 1.0],
+    }
+    m = make_metric(vectors=v)
+    score = m.compute("A. B. C.", "B. C. D.")
+    assert isinstance(score, float)
+    assert 0.0 <= score <= 1.0
+
+
+def test_compute_weighted_combination():
+    """S_seg = 0.6*S_boundary + 0.4*S_count 가중치 확인.
+
+    경계: 원문={1} (2세그먼트), 번안={} (1세그먼트)
+    → S_boundary=0 (매칭 안됨), S_count=1-|2-1|/2=0.5
+    → S_seg = 0.6*0 + 0.4*0.5 = 0.2
+
+    Note: NLTK는 단일 대문자 약어("A.", "B.")를 문장 경계로 인식하지 않으므로
+    실제 문장 형태의 텍스트를 사용한다.
+    """
+    # 원문: 앞 두 문장 유사, 세 번째 문장 급락 → 경계 at index 1
+    v = {
+        "The cat sat.": [1.0, 0.0, 0.0, 0.0],
+        "The dog ran.": [1.0, 0.0, 0.0, 0.0],
+        "It was red.": [0.0, 1.0, 0.0, 0.0],
+        # 번안: 모두 동일 벡터 → std=0 → 경계 없음
+        "The bird flew.": [1.0, 0.0, 0.0, 0.0],
+        "It was blue.": [1.0, 0.0, 0.0, 0.0],
+        "They were fast.": [1.0, 0.0, 0.0, 0.0],
+    }
+    m = make_metric(vectors=v, delta=0.1)
+    src = "The cat sat. The dog ran. It was red."
+    tgt = "The bird flew. It was blue. They were fast."
+    score = m.compute(src, tgt)
+    assert abs(score - 0.2) < 1e-6
+
+
+@pytest.mark.integration
+def test_real_model_identical_returns_one():
+    """실제 sentence-transformers 모델로 동일 텍스트 → 1.0."""
+    m = SegMetric()  # embedder=None → all-MiniLM-L6-v2 사용
+    text = (
+        "The quick brown fox jumped over the lazy dog. "
+        "It was a sunny afternoon. "
+        "The dog did not move at all."
+    )
+    score = m.compute(text, text)
+    assert score == 1.0
+
+
+@pytest.mark.integration
+def test_real_model_score_in_range():
+    m = SegMetric()
+    source = (
+        "Scientists discovered a new species of bird in the Amazon. "
+        "The bird has bright blue feathers. "
+        "Researchers believe it evolved in isolation. "
+        "They published their findings in Nature."
+    )
+    target = (
+        "A new bird was found in the Amazon rainforest. "
+        "It has blue feathers. "
+        "Scientists think it evolved alone. "
+        "The research was published."
+    )
+    score = m.compute(source, target)
+    assert 0.0 <= score <= 1.0

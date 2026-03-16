@@ -88,4 +88,18 @@ class SegMetric(BaseMetric):
         return 1.0 - abs(n_src - n_tgt) / max(n_src, n_tgt)
 
     def compute(self, source: str, target: str) -> float:
-        raise NotImplementedError
+        """원문과 번안문의 세그먼트 구조 유사도를 계산한다.
+
+        Returns:
+            S_seg = 0.6 * S_boundary + 0.4 * S_count  (0~1)
+        """
+        src_sents = self._sent_tokenize(source)
+        tgt_sents = self._sent_tokenize(target)
+
+        src_b = self._detect_boundaries(src_sents)
+        tgt_b = self._detect_boundaries(tgt_sents)
+
+        s_boundary = self._boundary_score(src_b, tgt_b, len(src_sents), len(tgt_sents))
+        s_count = self._count_score(src_b, tgt_b)
+
+        return 0.6 * s_boundary + 0.4 * s_count
