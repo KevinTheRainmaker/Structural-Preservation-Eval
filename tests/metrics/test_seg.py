@@ -197,3 +197,35 @@ def test_real_model_score_in_range():
     )
     score = m.compute(source, target)
     assert 0.0 <= score <= 1.0
+
+
+@pytest.mark.integration
+def test_korean_topic_shift_boundary_detected():
+    """한국어 화제 전환 경계를 탐지할 수 있어야 한다.
+
+    앞 두 문장(고양이)과 뒤 두 문장(목성)은 화제가 완전히 다르므로
+    인덱스 1에서 경계가 탐지되어야 한다.
+    """
+    m = SegMetric()
+    text = (
+        "고양이가 따뜻한 매트 위에 앉아 있었습니다. "
+        "그 고양이는 주황색 털을 가졌습니다. "
+        "목성은 태양계에서 가장 큰 행성입니다. "
+        "목성은 강력한 자기장을 가지고 있습니다."
+    )
+    sents = m._sent_tokenize(text)
+    boundaries = m._detect_boundaries(sents)
+    assert 1 in boundaries, f"화제 전환 경계(index 1)가 탐지되지 않음. 탐지된 경계: {boundaries}"
+
+
+@pytest.mark.integration
+def test_korean_identical_texts_score_one():
+    """동일한 한국어 텍스트는 1.0을 반환해야 한다."""
+    m = SegMetric()
+    text = (
+        "과학자들이 아마존에서 새로운 새를 발견했습니다. "
+        "그 새는 밝은 파란 깃털을 가졌습니다. "
+        "연구자들은 발견 결과를 발표했습니다."
+    )
+    score = m.compute(text, text)
+    assert score == 1.0

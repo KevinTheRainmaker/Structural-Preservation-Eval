@@ -1,6 +1,6 @@
 from __future__ import annotations
 import numpy as np
-from .base import BaseMetric
+from .base import BaseMetric, DEFAULT_EMBEDDING_MODEL
 from nltk.tokenize import sent_tokenize
 
 
@@ -19,7 +19,7 @@ class TopicMetric(BaseMetric):
     def _get_embedder(self):
         if self._embedder is None:
             from sentence_transformers import SentenceTransformer
-            self._embedder = SentenceTransformer("all-MiniLM-L6-v2")
+            self._embedder = SentenceTransformer(DEFAULT_EMBEDDING_MODEL)
         return self._embedder
 
     def _sent_tokenize(self, text: str) -> list[str]:
