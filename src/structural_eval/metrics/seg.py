@@ -53,5 +53,39 @@ class SegMetric(BaseMetric):
         threshold = mean_sim - self.threshold_sigma * std_sim
         return {i for i, s in enumerate(sims) if s < threshold}
 
+    def _boundary_score(
+        self,
+        src_b: set[int],
+        tgt_b: set[int],
+        n_src: int,
+        n_tgt: int,
+    ) -> float:
+        """원문 경계 집합과 번안 경계 집합의 위치 유사도.
+
+        번안 문장 인덱스를 원문 공간으로 선형 스케일링한 뒤
+        허용 오차 delta*n_src 이내의 매칭 수를 반환한다.
+        """
+        if not src_b:
+            return 1.0
+
+        if n_src == 0 or n_tgt == 0:
+            return 0.0
+
+        scale = n_src / n_tgt
+        delta_abs = self.delta * n_src
+        matches = 0
+        for b in src_b:
+            for tb in tgt_b:
+                if abs(tb * scale - b) <= delta_abs:
+                    matches += 1
+                    break
+        return matches / len(src_b)
+
+    def _count_score(self, src_b: set[int], tgt_b: set[int]) -> float:
+        """세그먼트 수 유사도. S_count = 1 - |N_s - N_t| / max(N_s, N_t)."""
+        n_src = len(src_b) + 1
+        n_tgt = len(tgt_b) + 1
+        return 1.0 - abs(n_src - n_tgt) / max(n_src, n_tgt)
+
     def compute(self, source: str, target: str) -> float:
         raise NotImplementedError

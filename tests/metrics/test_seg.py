@@ -83,3 +83,38 @@ def test_detect_boundaries_detects_drop():
     m = make_metric(vectors=v, threshold_sigma=0.5)
     boundaries = m._detect_boundaries(["A", "B", "C"])
     assert 1 in boundaries  # index 1 = B↔C 경계
+
+
+def test_boundary_score_identical_boundaries():
+    m = make_metric(delta=0.2)
+    # 원문 경계={1}, 번안 경계={1}, 원문 문장=3, 번안 문장=3 → 완전 일치
+    score = m._boundary_score(src_b={1}, tgt_b={1}, n_src=3, n_tgt=3)
+    assert score == 1.0
+
+
+def test_boundary_score_no_source_boundaries():
+    m = make_metric()
+    # 원문에 경계 없음 → 정의에 따라 1.0
+    score = m._boundary_score(src_b=set(), tgt_b={1}, n_src=2, n_tgt=3)
+    assert score == 1.0
+
+
+def test_boundary_score_no_match():
+    m = make_metric(delta=0.1)
+    # 원문 경계={0}, 번안 경계={5}, 거리 멀어 매칭 안됨 → 0.0
+    score = m._boundary_score(src_b={0}, tgt_b={5}, n_src=10, n_tgt=10)
+    assert score == 0.0
+
+
+def test_count_score_same_count():
+    m = make_metric()
+    score = m._count_score(src_b={1, 2}, tgt_b={1, 2})
+    assert score == 1.0  # 세그먼트 수 동일
+
+
+def test_count_score_different_count():
+    m = make_metric()
+    # 원문 3세그먼트, 번안 1세그먼트
+    score = m._count_score(src_b={1, 2}, tgt_b=set())
+    # |3-1|/max(3,1) = 2/3
+    assert abs(score - (1 - 2 / 3)) < 1e-9
